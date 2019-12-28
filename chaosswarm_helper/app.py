@@ -8,16 +8,30 @@ to individual Docker containers ("tasks") in services on that cluster.
 """
 
 import json
+import logging
 import random
 import subprocess
 
 import docker
 import requests
 
-from bottle import Bottle, abort, debug, HTTPResponse, request, run
+from bottle import Bottle, abort, HTTPError, HTTPResponse, request, run
 
 app = Bottle()
-debug(True)
+
+@app.error(500)
+def format_and_log_errors(error):
+    logging.error(error.traceback)
+    return HTTPResponse(
+        status=error.status,
+        body=json.dumps({
+            'status': 'failure',
+            'message': error.body,
+            'traceback': error.traceback
+        }),
+        content_type='application/json'
+    )
+
 @app.post('/submit')
 def submit():
     """
@@ -88,16 +102,9 @@ def execute():
     cmd.append(container)
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=10, text=True)
-    except FileNotFoundError:
-        abort_json({'status': 'failure', 'error': '%s: command not found' % cmd[0]})
+    except FileNotFoundError as err:
+        raise HTTPError(status=500, body='%s: command not found' % cmd[0], exception=err)
     if result.returncode != 0:
-        abort_json({'status': 'failure', 'error': result.stderr})
+        raise HTTPError(status=500, body=result.stderr)
     else:
         return {'status': 'success', 'output': result.stdout}
-
-def abort_json(data):
-    raise HTTPResponse(
-        status=500,
-        content_type='application/json',
-        body=json.dumps(data),
-    )

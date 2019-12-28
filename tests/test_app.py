@@ -85,7 +85,7 @@ def test_execute_command_fails():
     }, expect_errors=True)
     assert response.status_code == 500
     assert response.json['status'] == 'failure'
-    assert response.json['error'] == ''
+    assert response.json['message'] == ''
 
 def test_execute_no_such_command():
     app = chaosswarm_helper.app.app
@@ -95,6 +95,5 @@ def test_execute_no_such_command():
         'container': 'ze-container'
     }, expect_errors=True)
     assert response.status_code == 500
-    print(response.text)
     assert response.json['status'] == 'failure'
-    assert response.json['error'] == '/no/such/path: command not found'
+    assert response.json['message'] == '/no/such/path: command not found'
