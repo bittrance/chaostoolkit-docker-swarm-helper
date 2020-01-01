@@ -19,9 +19,11 @@ from bottle import Bottle, abort, HTTPError, HTTPResponse, request, run
 
 app = Bottle()
 
+@app.error(400)
 @app.error(500)
 def format_and_log_errors(error):
-    logging.error(error.traceback)
+    if error.status_code >= 500:
+        logging.error(error.traceback)
     return HTTPResponse(
         status=error.status,
         body=json.dumps({
@@ -103,8 +105,8 @@ def execute():
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=10, text=True)
     except FileNotFoundError as err:
-        raise HTTPError(status=500, body='%s: command not found' % cmd[0], exception=err)
+        raise HTTPError(status=500, body='%s: command not found' % cmd[0])
     if result.returncode != 0:
         raise HTTPError(status=500, body=result.stderr)
     else:
-        return {'status': 'success', 'output': result.stdout}
+        return {'status': 'success', 'target': container, 'output': result.stdout}

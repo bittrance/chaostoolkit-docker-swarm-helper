@@ -74,6 +74,7 @@ def test_execute_pumba_kill(test_app):
     })
     assert response.status_code == 200
     assert response.json['status'] == 'success'
+    assert response.json['target'] == 'ze-container'
     assert response.json['output'] == 'kill container ze-container\n'
 
 def test_execute_command_fails():
