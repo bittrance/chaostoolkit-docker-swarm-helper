@@ -47,22 +47,8 @@ def submit():
     candidates = resolve_targets(client, payload['selector'])
     targets = select_target_containers(candidates, payload['targets'])
     helpers = node_to_helper_table(client)
-
-    reply = []
-    for (node, container) in targets:
-        try:
-            helper = helpers[node]
-        except KeyError:
-            abort(500, 'no helper active on Swarm node %s' % node)
-        response = requests.post(
-            'http://%s:8080/execute' % helper,
-            json={
-                'container': container,
-                'action': payload['action']
-            }
-        )
-        reply.append(response.json)
-    return reply
+    results = delegate_to_helpers(helpers, targets, payload['action'], app.config)
+    return {'status': 'success', 'executions': results}
 
 def resolve_targets(client, selectors):
     service_filters = selectors['services']
@@ -88,6 +74,32 @@ def node_to_helper_table(client):
     for task in self[0].tasks():
         table[task['NodeID']] = task['Status']['ContainerStatus']['ContainerID']
     return table
+
+def delegate_to_helpers(helpers, targets, action, config):
+    port = config.get('node_port', 8080)
+    results = []
+    for (node, container) in targets:
+        try:
+            helper = helpers[node]
+            response = requests.post(
+                'http://%s:%d/execute' % (helper[:12], port),
+                json={'container': container, 'action': action},
+                timeout=3
+            )
+            results.append(response.json())
+        except KeyError:
+            results.append({
+                'status': 'failure',
+                'target': container,
+                'message': 'no helper active on Swarm node %s' % node
+            })
+        except Exception as err:
+            results.append({
+                'status': 'failure',
+                'target': container,
+                'message': str(err),
+            })
+    return results
 
 @app.post('/execute')
 def execute():

@@ -3,12 +3,22 @@
 import bottle
 import chaosswarm_helper.app
 import pytest
+import threading
 import webtest
 
 from hamcrest import *
 from unittest.mock import Mock
+from wsgiref.simple_server import make_server
 
 bottle.debug(True)
+
+def free_port_number():
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(('', 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 @pytest.fixture()
 def running_task():
@@ -31,6 +41,24 @@ def test_app():
     app = chaosswarm_helper.app.app
     app.config['pumba'] = '/bin/echo'
     yield webtest.TestApp(app)
+
+@pytest.fixture()
+def mock_node():
+    node = bottle.Bottle()
+    @node.post('/execute')
+    def execute():
+        return {
+            'status': 'success',
+            'output': bottle.request.json['container'],
+        }
+    port = free_port_number()
+    node.config['node_port'] = port
+    server = make_server('localhost', port, node)
+    t = threading.Thread(target=server.serve_forever)
+    t.start()
+    yield node
+    server.shutdown()
+    t.join()
 
 def test_resolve_targets_returns_tasks(client_with_running_task):
     res = chaosswarm_helper.app.resolve_targets(client_with_running_task, {'services': {'name': 'ze-service'}})
@@ -65,6 +93,36 @@ def test_select_target_containers_fails_invalid_selector():
     assert_that(
         calling(chaosswarm_helper.app.select_target_containers).with_args([], 'foo'),
         raises(RuntimeError)
+    )
+
+def test_delegate_to_helpers(mock_node):
+    helpers = {'node1': 'localhost', 'node2': 'localhost'}
+    targets = [('node1', 'container1'), ('node2', 'container2')]
+    results = chaosswarm_helper.app.delegate_to_helpers(helpers, targets, ['action'], mock_node.config)
+    assert_that(results, contains_inanyorder(has_entry('output', 'container1'), has_entry('output', 'container2')))
+
+def test_delegate_to_helpers_with_missing_helper(mock_node):
+    helpers = {'node1': 'localhost'}
+    targets = [('node1', 'container1'), ('node2', 'container2')]
+    results = chaosswarm_helper.app.delegate_to_helpers(helpers, targets, ['action'], mock_node.config)
+    assert_that(
+        results,
+        contains_inanyorder(
+            has_entry('status', 'success'),
+            has_entry('status', 'failure')
+        )
+    )
+
+def test_delegate_to_helpers_tries_all_targets(mock_node):
+    helpers = {'node1': 'no.such.helper'}
+    targets = [('node1', 'container1'), ('node1', 'container2')]
+    results = chaosswarm_helper.app.delegate_to_helpers(helpers, targets, ['action'], mock_node.config)
+    assert_that(
+        results,
+        contains(
+            has_entry('status', 'failure'),
+            has_entry('status', 'failure')
+        )
     )
 
 def test_execute_pumba_kill(test_app):
