@@ -125,6 +125,18 @@ def test_delegate_to_helpers_tries_all_targets(mock_node):
         )
     )
 
+def test_abort_on_failure():
+    results = [
+        {'status': 'failure', 'message': 'badness'},
+        {'status': 'success', 'output': 'ok!'}
+    ]
+    try:
+        chaosswarm_helper.app.abort_on_failure(results)
+        assert False, 'Expected HTTPError'
+    except bottle.HTTPError as err:
+        assert err.status_code == 500
+        assert_that(err.body, contains_string('badness'))
+
 def test_execute_pumba_kill(test_app):
     response = test_app.post_json('/execute', {
         'action': ['pumba', 'kill', 'container'],

@@ -43,11 +43,15 @@ def submit():
     endpoint.
     """
     payload = request.json
-    client = docker.from_env()
-    candidates = resolve_targets(client, payload['selector'])
+    selector = payload['selector']
+    client = app.config.get('docker_client', docker.from_env())
+    candidates = resolve_targets(client, selector)
+    if len(candidates) == 0:
+        raise HTTPError(status=400, body='no targets found for %s' % selector)
     targets = select_target_containers(candidates, payload['targets'])
     helpers = node_to_helper_table(client)
     results = delegate_to_helpers(helpers, targets, payload['action'], app.config)
+    abort_on_failure(results)
     return {'status': 'success', 'executions': results}
 
 def resolve_targets(client, selectors):
@@ -100,6 +104,11 @@ def delegate_to_helpers(helpers, targets, action, config):
                 'message': str(err),
             })
     return results
+
+def abort_on_failure(results):
+    for result in results:
+        if result['status'] == 'failure':
+            raise HTTPError(status_code=500, body=result['message'])
 
 @app.post('/execute')
 def execute():
