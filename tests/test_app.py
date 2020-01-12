@@ -7,6 +7,7 @@ import threading
 import webtest
 
 from hamcrest import *
+from types import SimpleNamespace
 from unittest.mock import Mock
 from wsgiref.simple_server import make_server
 
@@ -38,7 +39,10 @@ def client_with_running_task(running_task):
 
 @pytest.fixture()
 def test_app():
+    mock_client = Mock()
+    mock_client.containers.get = Mock(return_value=SimpleNamespace(name='ze-container-name'))
     app = chaosswarm_helper.app.app
+    app.config['docker_client'] = mock_client
     app.config['pumba'] = '/bin/echo'
     yield webtest.TestApp(app)
 
@@ -145,12 +149,11 @@ def test_execute_pumba_kill(test_app):
     assert response.status_code == 200
     assert response.json['status'] == 'success'
     assert response.json['target'] == 'ze-container'
-    assert response.json['output'] == 'kill container ze-container\n'
+    assert response.json['output'] == 'kill container ze-container-name\n'
 
-def test_execute_command_fails():
-    app = chaosswarm_helper.app.app
-    app.config['pumba'] = '/bin/false'
-    response = webtest.TestApp(app).post_json('/execute', {
+def test_execute_command_fails(test_app):
+    test_app.app.config['pumba'] = '/bin/false'
+    response = test_app.post_json('/execute', {
         'action': ['pumba', 'kill', 'container'],
         'container': 'ze-container'
     }, expect_errors=True)
@@ -158,10 +161,9 @@ def test_execute_command_fails():
     assert response.json['status'] == 'failure'
     assert response.json['message'] == ''
 
-def test_execute_no_such_command():
-    app = chaosswarm_helper.app.app
-    app.config['pumba'] = '/no/such/path'
-    response = webtest.TestApp(app).post_json('/execute', {
+def test_execute_no_such_command(test_app):
+    test_app.app.config['pumba'] = '/no/such/path'
+    response = test_app.post_json('/execute', {
         'action': ['pumba', 'kill', 'container'],
         'container': 'ze-container'
     }, expect_errors=True)

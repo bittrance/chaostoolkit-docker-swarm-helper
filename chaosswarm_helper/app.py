@@ -116,13 +116,14 @@ def execute():
     Execute a command on a container on the local node. This is an internal API;
     you probably want to use the /submit endpoint.
     """
+    client = app.config.get('docker_client', docker.from_env())
     cmd = request.json['action']
     if cmd[0] == 'pumba':
         cmd[0] = app.config.get('pumba', 'pumba')
     else:
         abort(400, 'known actions: pumba')
     container = request.json['container']
-    cmd.append(container)
+    cmd.append(client.containers.get(container).name)
     try:
         result = subprocess.run(cmd, capture_output=True, timeout=10, text=True)
     except FileNotFoundError as err:
