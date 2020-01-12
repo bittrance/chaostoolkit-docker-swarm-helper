@@ -7,4 +7,4 @@ RUN apk add --no-cache curl && \
 COPY chaosswarm_helper/ /chaosswarm_helper
 EXPOSE 8080
 # USER nobody
-CMD ["uwsgi", "--http", ":8080", "--wsgi-file", "/chaosswarm_helper/app.py", "--callable", "app"]
+CMD ["uwsgi", "--http", ":8080", "--wsgi-file", "/chaosswarm_helper/app.py", "--callable", "app", "--threads", "3"]
