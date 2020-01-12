@@ -18,6 +18,7 @@ import requests
 from bottle import Bottle, abort, HTTPError, HTTPResponse, request, run
 
 app = Bottle()
+logging.basicConfig(level='INFO')
 
 @app.error(400)
 @app.error(500)
@@ -33,6 +34,10 @@ def format_and_log_errors(error):
         }),
         content_type='application/json'
     )
+
+@app.get('/health')
+def health():
+    return 'ok'
 
 @app.post('/submit')
 def submit():
@@ -125,10 +130,11 @@ def execute():
     container = request.json['container']
     cmd.append(client.containers.get(container).name)
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=10, text=True)
+        result = subprocess.run(cmd, capture_output=True, timeout=2, text=True)
     except FileNotFoundError as err:
         raise HTTPError(status=500, body='%s: command not found' % cmd[0])
     if result.returncode != 0:
         raise HTTPError(status=500, body=result.stderr)
     else:
+        logging.info('Executed %s: out=%s, err=%s' % (cmd, result.stdout, result.stderr))
         return {'status': 'success', 'target': container, 'output': result.stdout}
