@@ -123,9 +123,9 @@ def test_delegate_to_helpers_tries_all_targets(mock_node):
     results = chaosswarm_helper.app.delegate_to_helpers(helpers, targets, ['action'], mock_node.config)
     assert_that(
         results,
-        contains(
-            has_entry('status', 'failure'),
-            has_entry('status', 'failure')
+        contains_inanyorder(
+            has_entries(status = 'failure', url = starts_with('http://no.such.help:')),
+            has_entries(status = 'failure', url = starts_with('http://no.such.help:'))
         )
     )
 

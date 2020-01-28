@@ -90,23 +90,25 @@ def delegate_to_helpers(helpers, targets, action, config):
     for (node, container) in targets:
         try:
             helper = helpers[node]
-            response = requests.post(
-                'http://%s:%d/execute' % (helper[:12], port),
-                json={'container': container, 'action': action},
-                timeout=3
-            )
-            results.append(response.json())
         except KeyError:
             results.append({
                 'status': 'failure',
                 'target': container,
                 'message': 'no helper active on Swarm node %s' % node
             })
+            continue
+        url = 'http://%s:%d/execute' % (helper[:12], port)
+        payload = {'container': container, 'action': action}
+        try:
+            response = requests.post(url, json=payload, timeout=3)
+            results.append(response.json())
         except Exception as err:
             results.append({
                 'status': 'failure',
                 'target': container,
                 'message': str(err),
+                'url': url,
+                'payload': payload,
             })
     return results
 
