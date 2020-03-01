@@ -26,14 +26,24 @@ def running_task():
     return {
         'Spec': {'ContainerSpec': {'Image': 'redis'}},
         'NodeID': 'ze-node',
+        'DesiredState': 'running',
         'Status': {'ContainerStatus': {'ContainerID': 'ze-container'}},
     }
 
 @pytest.fixture()
-def client_with_running_task(running_task):
+def shutdown_task():
+    return {
+        'Spec': {'ContainerSpec': {'Image': 'redis'}},
+        'NodeID': 'ze-node',
+        'DesiredState': 'shutdown',
+        'Status': {'ContainerStatus': {'ContainerID': 'ze-container'}},
+    }
+
+@pytest.fixture()
+def client_with_running_task(running_task, shutdown_task):
     client = Mock()
     service = Mock()
-    service.tasks = Mock(return_value=[running_task])
+    service.tasks = Mock(return_value=[shutdown_task, running_task])
     client.services.list = Mock(return_value=[service])
     return client
 

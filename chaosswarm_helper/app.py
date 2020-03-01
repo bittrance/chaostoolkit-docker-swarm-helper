@@ -66,8 +66,9 @@ def resolve_targets(client, selectors):
     candidates = []
     for service in services:
         for task in service.tasks(filters=task_filters):
-            container_id = task['Status']['ContainerStatus']['ContainerID']
-            candidates.append((task['NodeID'], container_id))
+            if task['DesiredState'] == 'running':
+                container_id = task['Status']['ContainerStatus']['ContainerID']
+                candidates.append((task['NodeID'], container_id))
     return candidates
 
 def select_target_containers(candidates, selector):
