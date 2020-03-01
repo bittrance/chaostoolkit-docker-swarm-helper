@@ -38,6 +38,16 @@ def await_helpers_healthy():
     else:
         raise RuntimeError('Timeout waiting for helper service')
 
+def await_task(client, service, timeout=10):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if len(service.tasks()) == 0:
+            continue
+        if 'ContainerStatus' not in service.tasks()[0]['Status']:
+            continue
+        return
+    raise AssertionError('Timeout waiting for tasks on %s' % service.name)
+
 def await_container_status(client, id, status, timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -77,7 +87,7 @@ def ensure_helpers(client):
 @pytest.fixture()
 def test_service(client):
     service = client.services.create(image='redis')
-    time.sleep(10)
+    await_task(client, service)
     yield service
     service.remove()
 
